@@ -2,8 +2,8 @@ import { useState } from "react";
 import reactLogo from "./assets/react.svg";
 import viteLogo from "/vite.svg";
 import "./App.css";
-import Workflow from "./components/workflow";
-import WorkflowViewer from "./WorkflowViewer";
+import SaveRestore from "./SaveRestore";
+
 
 function App() {
 
@@ -16,17 +16,17 @@ function App() {
 ];
 
 const edges = [
-  { id: "e1-2", source: "1", target: "2" },
-  { id: "e2-3", source: "2", target: "3" },
+  { id: "e1-2", source: "1", target: "2" ,type: 'step'},
+  { id: "e2-3", source: "2", target: "3",type: 'step' },
   { id: "e2-4", source: "2", target: "4" },
-  { id: "e3-5", source: "3", target: "5" },
+  { id: "e3-5", source: "3", target: "5" ,type: 'step'},
 ];
 
   return (
     <>
       <div>Hiiii</div>
       {/* <Workflow /> */}
-      <WorkflowViewer nodes={nodes} edges={edges} />
+      <SaveRestore nodes={nodes} edges={edges} />
     </>
   );
 }
