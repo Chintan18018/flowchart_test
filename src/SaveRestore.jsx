@@ -1,3 +1,4 @@
+// src/SaveRestore.jsx
 import React, { useState, useCallback } from "react";
 import {
   Background,
@@ -11,49 +12,28 @@ import {
 } from "@xyflow/react";
 
 import "@xyflow/react/dist/style.css";
-
 import CustomNode from "./CustomNode";
 
-// Register custom node
-const nodeTypes = {
-  custom: CustomNode,
-};
-
+const nodeTypes = { custom: CustomNode };
 const flowKey = "example-flow";
+const getNodeId = () => `node_${+new Date()}`;
 
-const getNodeId = () => `randomnode_${+new Date()}`;
-
-const SaveRestore = () => {
-  // ---------------------------
-  // A) STATE
-  // ---------------------------
-
-  // initial nodes without handlers
-  const initialNodes = [
-    {
-      id: "1",
-      type: "custom",
-      data: {
-        label: "Node 1",
-        subtitle: "Description of node 1",
-      },
-      position: { x: 0, y: -50 },
+const SaveRestore = ({
+  nodes: initialPropsNodes,
+  edges: initialPropsEdges,
+}) => {
+  // Convert your passed nodes to custom nodes
+  const formattedNodes = initialPropsNodes.map((n) => ({
+    ...n,
+    type: "custom",
+    data: {
+      ...n.data,
+      subtitle: n.data.subtitle || "",
     },
-    {
-      id: "2",
-      type: "custom",
-      data: {
-        label: "Node 2",
-        subtitle: "Description of node 2",
-      },
-      position: { x: 0, y: 50 },
-    },
-  ];
+  }));
 
-  const initialEdges = [{ id: "e1-2", source: "1", target: "2" }];
-
-  const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
-  const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);
+  const [nodes, setNodes, onNodesChange] = useNodesState(formattedNodes);
+  const [edges, setEdges, onEdgesChange] = useEdgesState(initialPropsEdges);
 
   const [rfInstance, setRfInstance] = useState(null);
   const { setViewport } = useReactFlow();
@@ -62,10 +42,11 @@ const SaveRestore = () => {
   const [editLabel, setEditLabel] = useState("");
   const [editSubtitle, setEditSubtitle] = useState("");
 
-  // ---------------------------
-  // B) EDIT / DELETE handlers
-  // ---------------------------
+  const [newLabel, setNewLabel] = useState("");
+  const [newSubtitle, setNewSubtitle] = useState("");
+  const [showInput, setShowInput] = useState(false);
 
+  /** DELETE NODE **/
   const handleDelete = useCallback(
     (id) => {
       setNodes((nds) => nds.filter((node) => node.id !== id));
@@ -74,20 +55,21 @@ const SaveRestore = () => {
     [setNodes, setEdges]
   );
 
+  /** EDIT NODE **/
   const handleEdit = useCallback(
     (id) => {
       const node = nodes.find((n) => n.id === id);
       if (!node) return;
 
-      // open edit panel with existing values
       setEditNodeId(id);
       setEditLabel(node.data.label);
       setEditSubtitle(node.data.subtitle);
-      setShowInput(false); // hide add form if open
+      setShowInput(false);
     },
     [nodes]
   );
 
+  /** SAVE EDIT **/
   const saveEditedNode = () => {
     setNodes((nds) =>
       nds.map((node) =>
@@ -107,43 +89,20 @@ const SaveRestore = () => {
     );
 
     setEditNodeId(null);
-    setEditLabel("");
-    setEditSubtitle("");
   };
 
   const cancelEdit = () => {
     setEditNodeId(null);
-    setEditLabel("");
-    setEditSubtitle("");
   };
 
-  // inject handlers into nodes
-  React.useEffect(() => {
-    setNodes((nds) =>
-      nds.map((node) => ({
-        ...node,
-        data: {
-          ...node.data,
-          onEdit: handleEdit,
-          onDelete: handleDelete,
-        },
-      }))
-    );
-  }, []);
-
-  // ---------------------------
-  // C) ADD NODE FORM
-  // ---------------------------
-
-  const [newLabel, setNewLabel] = useState("");
-  const [newSubtitle, setNewSubtitle] = useState("");
-  const [showInput, setShowInput] = useState(false);
-
-  const onAdd = useCallback(() => {
+  /** ADD NODE **/
+  const onAdd = () => {
     if (!newLabel.trim()) return;
 
+    const newId = getNodeId();
+
     const newNode = {
-      id: getNodeId(),
+      id: newId,
       type: "custom",
       data: {
         label: newLabel,
@@ -151,35 +110,37 @@ const SaveRestore = () => {
         onEdit: handleEdit,
         onDelete: handleDelete,
       },
-      position: {
-        x: (Math.random() - 0.5) * 400,
-        y: (Math.random() - 0.5) * 400,
-      },
+      position: { x: 0, y: nodes.length * 120 },
     };
 
     setNodes((nds) => nds.concat(newNode));
+
+    // Auto-connect to last node
+    if (nodes.length > 0) {
+      const last = nodes[nodes.length - 1];
+      setEdges((eds) =>
+        eds.concat({
+          id: `e${last.id}-${newId}`,
+          source: last.id,
+          target: newId,
+        })
+      );
+    }
+
     setNewLabel("");
     setNewSubtitle("");
     setShowInput(false);
-  }, [newLabel, newSubtitle, setNodes, handleEdit, handleDelete]);
+  };
 
-  // ---------------------------
-  // D) SAVE / RESTORE
-  // ---------------------------
-
-  const onConnect = useCallback(
-    (params) => setEdges((eds) => addEdge(params, eds)),
-    [setEdges]
-  );
-
-  const onSave = useCallback(() => {
+  /** SAVE / RESTORE **/
+  const onSave = () => {
     if (rfInstance) {
       const flow = rfInstance.toObject();
       localStorage.setItem(flowKey, JSON.stringify(flow));
     }
-  }, [rfInstance]);
+  };
 
-  const onRestore = useCallback(() => {
+  const onRestore = () => {
     const flow = JSON.parse(localStorage.getItem(flowKey));
     if (flow) {
       const { x = 0, y = 0, zoom = 1 } = flow.viewport;
@@ -198,12 +159,24 @@ const SaveRestore = () => {
       setEdges(flow.edges || []);
       setViewport({ x, y, zoom });
     }
-  }, [setNodes, setViewport, handleEdit, handleDelete]);
+  };
 
-  // ---------------------------
-  // E) RENDER UI
-  // ---------------------------
+  /** Inject Handlers into All Nodes **/
+  // React.useEffect(() => {
+  //   setNodes((nds) =>
+  //     nds.map((node) => ({
+  //       ...node,
+  //       type: "custom",
+  //       data: {
+  //         ...node.data,
+  //         onEdit: handleEdit,
+  //         onDelete: handleDelete,
+  //       },
+  //     }))
+  //   );
+  // }, []);
 
+  /** RENDER **/
   return (
     <ReactFlow
       nodes={nodes}
@@ -211,51 +184,40 @@ const SaveRestore = () => {
       nodeTypes={nodeTypes}
       onNodesChange={onNodesChange}
       onEdgesChange={onEdgesChange}
-      onConnect={onConnect}
-      onInit={setRfInstance}
+      onConnect={(params) => setEdges((eds) => addEdge(params, eds))}
       fitView
-      fitViewOptions={{ padding: 2 }}
     >
       <Background />
 
       <Panel position="top-right">
-        <button onClick={onSave}>save</button>
-        <button onClick={onRestore}>restore</button>
+        <button onClick={onSave}>Save</button>
+        <button onClick={onRestore}>Restore</button>
 
         {!showInput && (
-          <button onClick={() => setShowInput(true)}>add node</button>
+          <button onClick={() => setShowInput(true)}>Add Node</button>
         )}
 
         {showInput && (
           <div
             style={{
-              display: "flex",
-              flexDirection: "column",
-              gap: "6px",
-              background: "white",
               padding: "10px",
+              background: "white",
               borderRadius: "6px",
-              marginTop: "10px",
             }}
           >
             <input
               type="text"
-              placeholder="Enter node label"
+              placeholder="Label"
               value={newLabel}
               onChange={(e) => setNewLabel(e.target.value)}
             />
-
             <input
               type="text"
-              placeholder="Enter subtitle"
+              placeholder="Subtitle"
               value={newSubtitle}
               onChange={(e) => setNewSubtitle(e.target.value)}
             />
-
-            <button onClick={onAdd} disabled={!newLabel.trim()}>
-              Save Node
-            </button>
-
+            <button onClick={onAdd}>Save Node</button>
             <button onClick={() => setShowInput(false)}>Cancel</button>
           </div>
         )}
@@ -263,49 +225,22 @@ const SaveRestore = () => {
         {editNodeId && (
           <div
             style={{
-              display: "flex",
-              flexDirection: "column",
-              gap: "6px",
-              background: "white",
               padding: "10px",
+              background: "white",
               borderRadius: "6px",
-              marginTop: "10px",
-              width: "200px",
             }}
           >
             <strong>Edit Node</strong>
-
             <input
-              type="text"
-              placeholder="Title"
               value={editLabel}
               onChange={(e) => setEditLabel(e.target.value)}
-              style={{
-                padding: "5px 8px",
-                border: "1px solid #ccc",
-                borderRadius: "4px",
-              }}
             />
-
             <input
-              type="text"
-              placeholder="Subtitle"
               value={editSubtitle}
               onChange={(e) => setEditSubtitle(e.target.value)}
-              style={{
-                padding: "5px 8px",
-                border: "1px solid #ccc",
-                borderRadius: "4px",
-              }}
             />
-
-            <button className="xy-theme__button" onClick={saveEditedNode}>
-              Update
-            </button>
-
-            <button className="xy-theme__button" onClick={cancelEdit}>
-              Cancel
-            </button>
+            <button onClick={saveEditedNode}>Update</button>
+            <button onClick={cancelEdit}>Cancel</button>
           </div>
         )}
       </Panel>
@@ -313,9 +248,8 @@ const SaveRestore = () => {
   );
 };
 
-// Wrapper
-export default () => (
+export default (props) => (
   <ReactFlowProvider>
-    <SaveRestore />
+    <SaveRestore {...props} />
   </ReactFlowProvider>
 );
