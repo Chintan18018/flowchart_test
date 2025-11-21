@@ -1,5 +1,5 @@
 // src/SaveRestore.jsx
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, useEffect } from "react";
 import {
   Background,
   ReactFlow,
@@ -16,34 +16,18 @@ import CustomNode from "./CustomNode";
 
 const nodeTypes = { custom: CustomNode };
 const flowKey = "example-flow";
-const getNodeId = () => `node_${+new Date()}`;
+const getNodeId = () => `node_${Date.now()}`;
 
-const SaveRestore = ({
-  nodes: initialPropsNodes,
-  edges: initialPropsEdges,
-}) => {
-  // Convert your passed nodes to custom nodes
-  const formattedNodes = initialPropsNodes.map((n) => ({
+const SaveRestore = ({ nodes: initialNodesProp, edges: initialEdgesProp }) => {
+  /** Convert incoming nodes to custom nodes */
+  const formattedNodes = initialNodesProp.map((n) => ({
     ...n,
     type: "custom",
-    data: {
-      ...n.data,
-      subtitle: n.data.subtitle || "",
-    },
+    data: { ...n.data, subtitle: n.data.subtitle || "" },
   }));
 
-  const [nodes, setNodes, onNodesChange] = useNodesState(
-  formattedNodes.map(n => ({
-    ...n,
-    data: {
-      ...n.data,
-      onEdit: handleEdit,
-      onDelete: handleDelete
-    }
-  }))
-);
-
-  const [edges, setEdges, onEdgesChange] = useEdgesState(initialPropsEdges);
+  const [nodes, setNodes, onNodesChange] = useNodesState(formattedNodes);
+  const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdgesProp);
 
   const [rfInstance, setRfInstance] = useState(null);
   const { setViewport } = useReactFlow();
@@ -56,7 +40,7 @@ const SaveRestore = ({
   const [newSubtitle, setNewSubtitle] = useState("");
   const [showInput, setShowInput] = useState(false);
 
-  /** DELETE NODE **/
+  /** DELETE NODE */
   const handleDelete = useCallback(
     (id) => {
       setNodes((nds) => nds.filter((node) => node.id !== id));
@@ -65,7 +49,7 @@ const SaveRestore = ({
     [setNodes, setEdges]
   );
 
-  /** EDIT NODE **/
+  /** EDIT NODE */
   const handleEdit = useCallback(
     (id) => {
       const node = nodes.find((n) => n.id === id);
@@ -79,7 +63,7 @@ const SaveRestore = ({
     [nodes]
   );
 
-  /** SAVE EDIT **/
+  /** SAVE EDIT */
   const saveEditedNode = () => {
     setNodes((nds) =>
       nds.map((node) =>
@@ -101,16 +85,18 @@ const SaveRestore = ({
     setEditNodeId(null);
   };
 
+  /** CANCEL EDIT */
   const cancelEdit = () => {
     setEditNodeId(null);
+    setEditLabel("");
+    setEditSubtitle("");
   };
 
-  /** ADD NODE **/
+  /** ADD NODE */
   const onAdd = () => {
     if (!newLabel.trim()) return;
 
     const newId = getNodeId();
-
     const newNode = {
       id: newId,
       type: "custom",
@@ -142,7 +128,7 @@ const SaveRestore = ({
     setShowInput(false);
   };
 
-  /** SAVE / RESTORE **/
+  /** SAVE FLOW */
   const onSave = () => {
     if (rfInstance) {
       const flow = rfInstance.toObject();
@@ -150,10 +136,11 @@ const SaveRestore = ({
     }
   };
 
+  /** RESTORE FLOW */
   const onRestore = () => {
     const flow = JSON.parse(localStorage.getItem(flowKey));
     if (flow) {
-      const { x = 0, y = 0, zoom = 1 } = flow.viewport;
+      const { x, y, zoom } = flow.viewport;
 
       setNodes(
         flow.nodes.map((n) => ({
@@ -171,21 +158,22 @@ const SaveRestore = ({
     }
   };
 
-  /** Inject Handlers into All Nodes **/
-  React.useEffect(() => {
-  setNodes(nds =>
-    nds.map(node => ({
-      ...node,
-      data: {
-        ...node.data,
-        onEdit: handleEdit,
-        onDelete: handleDelete
-      }
-    }))
-  );
-}, [nodes.length]); 
+  /** Inject edit/delete handlers once (NO infinite loop) */
+  useEffect(() => {
+    setNodes((nds) =>
+      nds.map((node) => ({
+        ...node,
+        type: "custom",
+        data: {
+          ...node.data,
+          onEdit: handleEdit,
+          onDelete: handleDelete,
+        },
+      }))
+    );
+  }, []);
 
-  /** RENDER **/
+  /** UI Rendering */
   return (
     <ReactFlow
       nodes={nodes}
@@ -202,44 +190,31 @@ const SaveRestore = ({
         <button onClick={onSave}>Save</button>
         <button onClick={onRestore}>Restore</button>
 
-        {!showInput && (
-          <button onClick={() => setShowInput(true)}>Add Node</button>
-        )}
+        {!showInput && <button onClick={() => setShowInput(true)}>Add</button>}
 
         {showInput && (
-          <div
-            style={{
-              padding: "10px",
-              background: "white",
-              borderRadius: "6px",
-            }}
-          >
+          <div style={{ padding: "10px", background: "white" }}>
             <input
-              type="text"
               placeholder="Label"
               value={newLabel}
               onChange={(e) => setNewLabel(e.target.value)}
             />
+
             <input
-              type="text"
               placeholder="Subtitle"
               value={newSubtitle}
               onChange={(e) => setNewSubtitle(e.target.value)}
             />
-            <button onClick={onAdd}>Save Node</button>
+
+            <button onClick={onAdd}>Save</button>
             <button onClick={() => setShowInput(false)}>Cancel</button>
           </div>
         )}
 
         {editNodeId && (
-          <div
-            style={{
-              padding: "10px",
-              background: "white",
-              borderRadius: "6px",
-            }}
-          >
+          <div style={{ padding: "10px", background: "white" }}>
             <strong>Edit Node</strong>
+
             <input
               value={editLabel}
               onChange={(e) => setEditLabel(e.target.value)}
@@ -248,6 +223,7 @@ const SaveRestore = ({
               value={editSubtitle}
               onChange={(e) => setEditSubtitle(e.target.value)}
             />
+
             <button onClick={saveEditedNode}>Update</button>
             <button onClick={cancelEdit}>Cancel</button>
           </div>
