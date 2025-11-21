@@ -32,7 +32,17 @@ const SaveRestore = ({
     },
   }));
 
-  const [nodes, setNodes, onNodesChange] = useNodesState(formattedNodes);
+  const [nodes, setNodes, onNodesChange] = useNodesState(
+  formattedNodes.map(n => ({
+    ...n,
+    data: {
+      ...n.data,
+      onEdit: handleEdit,
+      onDelete: handleDelete
+    }
+  }))
+);
+
   const [edges, setEdges, onEdgesChange] = useEdgesState(initialPropsEdges);
 
   const [rfInstance, setRfInstance] = useState(null);
@@ -162,19 +172,18 @@ const SaveRestore = ({
   };
 
   /** Inject Handlers into All Nodes **/
-  // React.useEffect(() => {
-  //   setNodes((nds) =>
-  //     nds.map((node) => ({
-  //       ...node,
-  //       type: "custom",
-  //       data: {
-  //         ...node.data,
-  //         onEdit: handleEdit,
-  //         onDelete: handleDelete,
-  //       },
-  //     }))
-  //   );
-  // }, []);
+  React.useEffect(() => {
+  setNodes(nds =>
+    nds.map(node => ({
+      ...node,
+      data: {
+        ...node.data,
+        onEdit: handleEdit,
+        onDelete: handleDelete
+      }
+    }))
+  );
+}, [nodes.length]); 
 
   /** RENDER **/
   return (
